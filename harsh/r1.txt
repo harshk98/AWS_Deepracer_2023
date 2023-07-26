@@ -1,0 +1,164 @@
+import math
+
+def reward_function(params):
+    '''
+    Example of rewarding the agent to follow center line
+    '''
+    print('\n--------------------------------------------------------------------------------------', end='\n')
+    print('params=', params, end='\n\n')
+    print('current - coordinates=[', params['x'], ',', params['y'], ']', end='\n')
+    waypoints1 = params['waypoints']
+    closest_waypoints1 = params['closest_waypoints']
+    heading1 = params['heading']
+    print('root_waypoints: ', waypoints1, end='\n\n')
+    print('root_closest_waypoints: ', closest_waypoints1, end='\n\n')
+    print('root_heading: ', heading1, end='\n\n')
+    rewardPoints_dst_from_Centre = rewardsBasedOnDstFromCenter(params)
+    # rewardPoints_dst_from_Centre = adjustRewardPointsBasedOnSteeringAngle(rewardPoints_dst_from_Centre, params)
+    rewardPoints_speed = rewardBasedOnSpeed(params)
+    rewards_closestObjs = adjustRewardBasedOnClosestObjects(params)
+    rewardPoints_directionHeading = adjustRewardPointsBasedOnDirectionHeading(params)
+    rewardPoints_TrackProgress = adjustRewardBasedOnTrackProgress(params)
+    '''
+    Example of rewarding the agent to stay inside the two borders of the track
+    '''
+    print('\n--------------------------------------------------------------------------------------', end='\n\n')
+    return float(rewards_closestObjs + rewardPoints_speed+rewardPoints_dst_from_Centre+rewardPoints_directionHeading+rewardPoints_TrackProgress)
+
+
+def adjustRewardBasedOnTrackProgress(params):
+    print('progress=', params['progress'], '\n steps=', params['steps'], '\n speed=', params['speed'], end='\n')
+    if params["all_wheels_on_track"] and params["steps"] > 0:
+        rewardPoints = ((params["progress"] / params["steps"]) * 100) + (params["speed"] ** 2)
+    else:
+        rewardPoints = 0.01
+
+    return float(rewardPoints)
+
+def index_exists(ls, i):
+    return (0 <= i < len(ls)) or (-len(ls) <= i < 0)
+
+def adjustRewardBasedOnClosestObjects(params):
+    all_wheels_on_track = params["all_wheels_on_track"]
+    track_width = params['track_width']
+    distance_from_center = params['distance_from_center']
+    objects_distance = params['objects_distance']
+    _, next_object_index = params['closest_objects']
+    objects_left_of_center = params['objects_left_of_center']
+    is_left_of_center = params['is_left_of_center']
+
+    print('\n objects_left_of_center=', objects_left_of_center, end='\n')
+    print('objects_distance=', objects_distance, end='\n')
+    print('next_object_index=',next_object_index, end='\n')
+    print('closest_objects=', params['closest_objects'], end='\n')
+    print('isLeftOfCenter=', is_left_of_center, end='\n')
+
+    # reward_lane = 1e-3
+    # if all_wheels_on_track and (0.5 * track_width - distance_from_center) >= 0.05:
+    #     reward_lane = 1.0
+
+    reward_avoid = 1
+    dst_closest_object = 1
+    if index_exists(objects_distance, next_object_index):
+        dst_closest_object = objects_distance[next_object_index]
+
+    is_same_lane = True
+    if index_exists(objects_distance, next_object_index):
+        is_same_lane = objects_left_of_center[next_object_index] == is_left_of_center
+
+    if is_same_lane:
+        if 0.5 <= dst_closest_object < 0.8:
+            reward_avoid *= 0.5
+        elif 0.3 <= dst_closest_object < 0.5:
+            reward_avoid *= 0.2
+        elif dst_closest_object < 0.3:
+            reward_avoid = 1e-3
+
+    return float(4.0*reward_avoid)
+
+
+def adjustRewardPointsBasedOnDirectionHeading(params):
+    waypoints = params['waypoints']
+    closest_waypoints = params['closest_waypoints']
+    heading = params['heading']
+    print('waypoints: ', waypoints, '\n\nclosest_waypoints: ', closest_waypoints, end='\n')
+
+
+    # Calculate the direction of the center line based on the closest waypoints
+    next_point = waypoints[closest_waypoints[1]]
+    prev_point = waypoints[closest_waypoints[0]]
+
+    # Calculate the direction in radius, arctan2(dy, dx), the result is (-pi, pi) in radians
+    track_direction = math.atan2(next_point[1] - prev_point[1], next_point[0] - prev_point[0])
+    # Convert to degree
+    track_direction = math.degrees(track_direction)
+    print('track_direction: ', track_direction, '\nheading: ', heading, end='\n')
+    # Calculate the difference between the track direction and the heading direction of the car
+    direction_diff = abs(track_direction - heading)
+    if direction_diff > 180:
+        direction_diff = 360 - direction_diff
+
+    # Penalize the reward if the difference is too large
+    DIRECTION_THRESHOLD = 10.0
+    rewardPoints=1
+    if direction_diff > DIRECTION_THRESHOLD:
+        print('direction heading threshold breached',  end='\n')
+        rewardPoints = 0.5
+
+    return float(rewardPoints)
+
+
+def adjustRewardPointsBasedOnSteeringAngle(rewardPoints, params):
+    abs_steering = abs(params['steering_angle'])  # We don't care whether it is left or right steering
+    print('abs_steering: ', abs_steering, end='\n')
+    # Initialize the reward with typical value
+    # Penalize if car steer too much to prevent zigzag
+    ABS_STEERING_THRESHOLD = 10.0
+    if abs_steering > ABS_STEERING_THRESHOLD:
+        print('steering angle threshold breached', end='\n')
+        rewardPoints *= 0.7
+
+    return float(rewardPoints)
+
+def rewardBasedOnSpeed(params):
+    all_wheels_on_track = params['all_wheels_on_track']
+    speed = params['speed']
+    print('speed: ', speed, end='\n')
+    rewardPoints = 1
+    SPEED_THRESHOLD = 2
+    if all_wheels_on_track and speed < SPEED_THRESHOLD:
+        # Penalize if the car goes too slow
+        print('speed threshold breached', end='\n')
+        rewardPoints = 0.5
+    return float(rewardPoints)
+
+
+def rewardsBasedOnDstFromCenter(params):
+    # assume track width = 10 (markers = 1,2,3,4,5)
+    rewardPoints = 1
+    track_width = params['track_width']
+    distance_from_center = params['distance_from_center']
+    all_wheels_on_track = params['all_wheels_on_track']
+
+    print('trackwidth: ', track_width, '\ndistance_from_center: ', distance_from_center, '\nall_wheels_on_track: ',
+          all_wheels_on_track, end='\n')
+    marker_1 = 0.1 * track_width
+    marker_2 = 0.2 * track_width
+    marker_3 = 0.3 * track_width
+    marker_4 = 0.4 * track_width
+    marker_5 = 0.5 * track_width
+    # Give higher rewardPoints if the car is closer to center line and vice versa
+    if all_wheels_on_track:
+        if distance_from_center <= marker_1:
+            rewardPoints = 1.0
+        elif distance_from_center <= marker_2:
+            rewardPoints = 1.0
+        elif distance_from_center <= marker_3:
+            rewardPoints = 1.0
+        elif distance_from_center <= marker_4:
+            rewardPoints = 0.5
+        elif distance_from_center <= marker_5:
+            rewardPoints = 0.5
+    else:
+        rewardPoints = 1e-3
+    return float(rewardPoints)
