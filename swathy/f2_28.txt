@@ -1,0 +1,16 @@
+Goes too much off track due to high speed 
+def reward_function(params):
+    '''
+    Example of rewarding the agent to follow center line
+    '''
+    
+    # Read input parameters
+    speed = params['speed']
+    all_wheels_on_track = params['all_wheels_on_track']
+    reward = 1e-3
+
+    # if not on track return low reward
+    if all_wheels_on_track:
+        reward = speed
+    
+    return float(reward)
