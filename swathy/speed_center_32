@@ -1,0 +1,25 @@
+Off-track around 6 times
+def reward_function(params):
+    '''
+    Example of rewarding the agent to follow center line
+    '''
+    
+    # Read input parameters
+    speed = params['speed']
+    all_wheels_on_track = params['all_wheels_on_track']
+    distance_from_center = params['distance_from_center']
+    track_width = params['track_width']
+    abs_steering = abs(params['steering_angle']) 
+    reward = 1e-3
+    
+    # if not on track return low reward
+    if all_wheels_on_track and (0.5*track_width - distance_from_center) >= 0.05:
+        reward = speed * (0.5*track_width - distance_from_center)
+    
+    ABS_STEERING_THRESHOLD = 15
+    
+    # Penalize reward if the car is steering too much
+    if abs_steering > ABS_STEERING_THRESHOLD:
+        reward *= 0.8
+        
+    return float(reward)
