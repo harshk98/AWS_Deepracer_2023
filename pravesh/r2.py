@@ -434,7 +434,8 @@ class Reward:
         return float(reward)
 
 
-reward_object = Reward()
+reward_object = Reward() # add parameter verbose=True to get noisy output for testing
+
 
 def reward_function(params):
     return reward_object.reward_function(params)
